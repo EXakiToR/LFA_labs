@@ -10,7 +10,8 @@ def main():
         print(f"  {i}. {w}")
 
     automaton = grammar.to_finite_automaton()
-
+    print()
+    print(automaton)
     print("\nChecking if the generated words are accepted by the finite automaton:")
     for w in words:
         print(f"  {w} -> {automaton.string_belongs_to_language(w)}")
