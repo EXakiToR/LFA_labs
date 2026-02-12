@@ -187,7 +187,33 @@ if __name__ == "__main__":
 ```
 
 ## Conclusions / Results
+Running main.py gives the following console output:
+```
+Generating 5 words using the regular grammar:
+  1. abaaaab
+  2. babbb
+  3. abb
+  4. bcaacabcaabaaab
+  5. abb
 
+FiniteAutomaton(states={'B', 'S', 'F', 'D'}, alphabet={'b', 'c', 'a'}, start_state=S, final_states={'F'})
+
+Checking if the generated words are accepted by the finite automaton:
+  abaaaab -> True
+  babbb -> True
+  abb -> True
+  bcaacabcaabaaab -> True
+  abb -> True
+
+Manual tests for membership:
+  ab -> False
+  bb -> False
+  baab -> False
+  abab -> True
+  ac -> False
+  bcbc -> False
+  baaab -> False
+```
 The implemented solution models the given Variant 11 regular grammar and converts it into an equivalent finite automaton. The program can generate valid words from the language and then verify that both randomly generated and manually chosen test words are either accepted or rejected by the automaton according to the formal definition. This exercise showed how theory about grammars and automata can be turned into concrete, testable code.
 
 ## References
