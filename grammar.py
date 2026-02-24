@@ -47,8 +47,16 @@ class Grammar:
             if not rhss:
                 raise ValueError(f"No right-hand sides provided for {head}.")
             for terminal, next_nonterminal in rhss:
-                if not terminal:
-                    raise ValueError(f"Empty terminal in production for {head}.")
+                # Allow empty terminal string to represent an ε-production.
+                # In that case there must be no next non-terminal.
+                if terminal == "":
+                    if next_nonterminal is not None:
+                        raise ValueError(
+                            f"Epsilon production for {head} must not have a "
+                            "next non-terminal."
+                        )
+                    continue
+
                 if any(ch not in self.terminals for ch in terminal):
                     raise ValueError(
                         f"Terminal {terminal} in production {head} "
@@ -133,6 +141,13 @@ class Grammar:
 
         for head, rhss in self.productions.items():
             for terminal, next_nonterminal in rhss:
+                # ε-production: mark the state corresponding to `head` as final
+                # in addition to the synthetic final state. We keep the model
+                # ε-free by not adding transitions for ε.
+                if terminal == "":
+                    final_states.add(head)
+                    continue
+
                 if next_nonterminal is None:
                     src, dst = head, final_state
                 else:
@@ -150,6 +165,17 @@ class Grammar:
             start_state=start_state,
             final_states=final_states,
         )
+
+
+    def classify_chomsky_type(self) -> str:
+        """
+        Classify this grammar in the Chomsky hierarchy.
+
+        Given this implementation only allows productions of the form
+        A -> aB, A -> a, or A -> ε, every instance of this class is
+        a Type-3 regular (right-linear) grammar.
+        """
+        return "Type-3 regular (right-linear) grammar"
 
 
 def build_variant_11_grammar() -> Grammar:
@@ -182,5 +208,40 @@ def build_variant_11_grammar() -> Grammar:
         terminals=terminals,
         productions=productions,
         start_symbol="S",
+    )
+
+
+def finite_automaton_to_grammar(automaton: FiniteAutomaton) -> Grammar:
+    """
+    Convert a finite automaton to an equivalent right-linear grammar.
+
+    Construction:
+      - Each state becomes a non-terminal.
+      - For each transition q --a--> p add production A_q -> a A_p.
+      - For each final state q_f add production A_qf -> ε.
+
+    ε is represented as an empty terminal string "" with no next
+    non-terminal (None).
+    """
+    non_terminals = set(automaton.states)
+    terminals = set(automaton.alphabet)
+
+    productions: Dict[NonTerminal, List[ProductionRHS]] = {
+        state: [] for state in automaton.states
+    }
+
+    for (src, symbol), dests in automaton.transitions.items():
+        for dst in dests:
+            productions[src].append((symbol, dst))
+
+    for f in automaton.final_states:
+        productions.setdefault(f, [])
+        productions[f].append(("", None))
+
+    return Grammar(
+        non_terminals=non_terminals,
+        terminals=terminals,
+        productions=productions,
+        start_symbol=automaton.start_state,
     )
 
