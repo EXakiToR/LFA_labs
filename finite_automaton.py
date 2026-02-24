@@ -85,3 +85,111 @@ class FiniteAutomaton:
             f"final_states={self.final_states})"
         )
 
+    def is_deterministic(self) -> bool:
+        """
+        An automaton is deterministic if for every (state, symbol) pair
+        there is at most one destination state.
+        """
+        for (_, _), dests in self.transitions.items():
+            if len(dests) > 1:
+                return False
+        return True
+
+    def to_deterministic(self) -> "FiniteAutomaton":
+        """
+        Convert this (ε-free) NFA to an equivalent DFA using the
+        standard subset construction.
+        """
+        from collections import deque
+
+        # Each DFA state is a subset of NFA states, encoded as a string.
+        def subset_name(subset) -> str:
+            subset = sorted(subset)
+            if not subset:
+                return "{}"
+            return "{" + ",".join(subset) + "}"
+
+        start_subset = frozenset({self.start_state})
+        subset_to_name: Dict[frozenset, str] = {
+            start_subset: subset_name(start_subset)
+        }
+
+        queue = deque([start_subset])
+        dfa_transitions: Dict[Tuple[str, str], Set[str]] = {}
+
+        while queue:
+            subset = queue.popleft()
+            src_name = subset_to_name[subset]
+
+            for symbol in self.alphabet:
+                dest_subset = set()
+                for state in subset:
+                    dests = self.transitions.get((state, symbol))
+                    if dests:
+                        dest_subset.update(dests)
+
+                if not dest_subset:
+                    continue
+
+                dest_frozen = frozenset(dest_subset)
+                if dest_frozen not in subset_to_name:
+                    subset_to_name[dest_frozen] = subset_name(dest_subset)
+                    queue.append(dest_frozen)
+
+                dst_name = subset_to_name[dest_frozen]
+                dfa_transitions.setdefault((src_name, symbol), set()).add(dst_name)
+
+        dfa_states = set(subset_to_name.values())
+        dfa_start_state = subset_to_name[start_subset]
+        dfa_final_states = {
+            subset_to_name[s]
+            for s in subset_to_name
+            if any(state in self.final_states for state in s)
+        }
+
+        return FiniteAutomaton(
+            states=dfa_states,
+            alphabet=self.alphabet,
+            transitions=dfa_transitions,
+            start_state=dfa_start_state,
+            final_states=dfa_final_states,
+        )
+
+
+def build_variant_11_automaton() -> FiniteAutomaton:
+    """
+    Build the finite automaton for Variant 11:
+
+      Q = {q0, q1, q2, q3}
+      Σ = {a, b, c}
+      F = {q3}
+      δ(q0, a) = q1
+      δ(q1, b) = q2
+      δ(q2, c) = q0
+      δ(q1, a) = q3
+      δ(q0, b) = q2
+      δ(q2, c) = q3
+
+    Note that δ(q2, c) has two destinations (q0, q3), which makes this
+    automaton non-deterministic.
+    """
+    states = {"q0", "q1", "q2", "q3"}
+    alphabet = {"a", "b", "c"}
+    transitions: Dict[Tuple[str, str], Set[str]] = {
+        ("q0", "a"): {"q1"},
+        ("q1", "b"): {"q2"},
+        ("q2", "c"): {"q0", "q3"},
+        ("q1", "a"): {"q3"},
+        ("q0", "b"): {"q2"},
+    }
+    start_state = "q0"
+    final_states = {"q3"}
+
+    return FiniteAutomaton(
+        states=states,
+        alphabet=alphabet,
+        transitions=transitions,
+        start_state=start_state,
+        final_states=final_states,
+    )
+
