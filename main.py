@@ -1,4 +1,8 @@
-from grammar import build_variant_11_grammar
+from grammar import (
+    build_variant_11_grammar,
+    finite_automaton_to_grammar,
+)
+from finite_automaton import build_variant_11_automaton
 
 
 def main():
@@ -20,6 +24,19 @@ def main():
     print("\nManual tests for membership:")
     for w in test_words:
         print(f"  {w} -> {automaton.string_belongs_to_language(w)}")
+
+    print("\nChomsky type of the grammar:", grammar.classify_chomsky_type())
+
+    # Variant 11 finite automaton from the second lab
+    variant_fa = build_variant_11_automaton()
+    print("\nVariant 11 FA is deterministic?", variant_fa.is_deterministic())
+
+    dfa = variant_fa.to_deterministic()
+    print("Converted DFA is deterministic?", dfa.is_deterministic())
+
+    rg_from_fa = finite_automaton_to_grammar(variant_fa)
+    print("Grammar derived from Variant 11 FA is classified as:",
+          rg_from_fa.classify_chomsky_type())
 
 
 if __name__ == "__main__":

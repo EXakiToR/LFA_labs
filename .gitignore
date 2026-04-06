@@ -1,3 +1,5 @@
 *.env
 *.pyc
 tempCodeRunnerFile.*
+/.vs/slnx.sqlite
+/.vs/LFA_labs
