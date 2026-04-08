@@ -1,12 +1,30 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Optional
+
+
+class TokenType(Enum):
+    INT = "INT"
+    FLOAT = "FLOAT"
+    SIN = "SIN"
+    COS = "COS"
+    IDENT = "IDENT"
+    PLUS = "PLUS"
+    MINUS = "MINUS"
+    MUL = "MUL"
+    DIV = "DIV"
+    POW = "POW"
+    LPAREN = "LPAREN"
+    RPAREN = "RPAREN"
+    EOF = "EOF"
 
 
 @dataclass(frozen=True)
 class Token:
-    type: str
+    type: TokenType
     value: Any
     position: int  # index in the original input string
 
@@ -31,116 +49,56 @@ class Lexer:
         self.text = text
         self.pos = 0
 
-    def _peek(self) -> Optional[str]:
-        if self.pos >= len(self.text):
-            return None
-        return self.text[self.pos]
-
-    def _advance(self) -> Optional[str]:
-        ch = self._peek()
-        if ch is None:
-            return None
-        self.pos += 1
-        return ch
-
-    def _skip_whitespace(self) -> None:
-        while True:
-            ch = self._peek()
-            if ch is None or not ch.isspace():
-                return
-            self.pos += 1
-
-    def _lex_number(self) -> Token:
-        """
-        Maximal munch for numbers:
-          - read digits
-          - if a '.' followed by a digit exists, read fractional part
-        """
-        start = self.pos
-
-        # Integer part
-        while (ch := self._peek()) is not None and ch.isdigit():
-            self.pos += 1
-
-        # Fractional part
-        if self._peek() == ".":
-            # Lookahead: only treat as float if there is at least one digit after '.'
-            if self.pos + 1 < len(self.text) and self.text[self.pos + 1].isdigit():
-                self.pos += 1  # consume '.'
-                while (ch := self._peek()) is not None and ch.isdigit():
-                    self.pos += 1
-
-                raw = self.text[start:self.pos]
-                return Token(type="FLOAT", value=float(raw), position=start)
-
-            # We saw a '.' but it's not a float like "12."
-            raise ValueError(f"Invalid number at position {start}: expected digits after '.'")
-
-        raw = self.text[start:self.pos]
-        return Token(type="INT", value=int(raw), position=start)
-
-    def _lex_identifier(self) -> Token:
-        start = self.pos
-
-        # [a-zA-Z_][a-zA-Z0-9_]*
-        while True:
-            ch = self._peek()
-            if ch is None:
-                break
-            if ch.isalnum() or ch == "_":
-                self.pos += 1
-                continue
-            break
-
-        raw = self.text[start:self.pos]
-        if raw == "sin":
-            return Token(type="SIN", value=raw, position=start)
-        if raw == "cos":
-            return Token(type="COS", value=raw, position=start)
-        return Token(type="IDENT", value=raw, position=start)
+        self._patterns = [
+            (TokenType.FLOAT, re.compile(r"\d+\.\d+")),
+            (TokenType.INT, re.compile(r"\d+")),
+            (TokenType.IDENT, re.compile(r"[a-zA-Z_][a-zA-Z0-9_]*")),
+            (TokenType.PLUS, re.compile(r"\+")),
+            (TokenType.MINUS, re.compile(r"-")),
+            (TokenType.MUL, re.compile(r"\*")),
+            (TokenType.DIV, re.compile(r"/")),
+            (TokenType.POW, re.compile(r"\^")),
+            (TokenType.LPAREN, re.compile(r"\(")),
+            (TokenType.RPAREN, re.compile(r"\)")),
+        ]
+        self._ws = re.compile(r"\s+")
 
     def next_token(self) -> Token:
-        self._skip_whitespace()
-        ch = self._peek()
+        ws_match = self._ws.match(self.text, self.pos)
+        if ws_match:
+            self.pos = ws_match.end()
 
-        if ch is None:
-            return Token(type="EOF", value=None, position=self.pos)
+        if self.pos >= len(self.text):
+            return Token(type=TokenType.EOF, value=None, position=self.pos)
 
-        # Numbers
-        if ch.isdigit():
-            return self._lex_number()
+        for token_type, pattern in self._patterns:
+            match = pattern.match(self.text, self.pos)
+            if not match:
+                continue
+            lexeme = match.group(0)
+            start = self.pos
+            self.pos = match.end()
 
-        # Identifiers / keywords
-        if ch.isalpha() or ch == "_":
-            # identifier starts here, so consume first char in the loop
-            return self._lex_identifier()
+            if token_type == TokenType.FLOAT:
+                return Token(type=TokenType.FLOAT, value=float(lexeme), position=start)
+            if token_type == TokenType.INT:
+                return Token(type=TokenType.INT, value=int(lexeme), position=start)
+            if token_type == TokenType.IDENT:
+                if lexeme == "sin":
+                    return Token(type=TokenType.SIN, value=lexeme, position=start)
+                if lexeme == "cos":
+                    return Token(type=TokenType.COS, value=lexeme, position=start)
+                return Token(type=TokenType.IDENT, value=lexeme, position=start)
+            return Token(type=token_type, value=lexeme, position=start)
 
-        # Operators / delimiters
-        self.pos += 1  # consume the current character
-        if ch == "+":
-            return Token(type="PLUS", value=ch, position=self.pos - 1)
-        if ch == "-":
-            return Token(type="MINUS", value=ch, position=self.pos - 1)
-        if ch == "*":
-            return Token(type="MUL", value=ch, position=self.pos - 1)
-        if ch == "/":
-            return Token(type="DIV", value=ch, position=self.pos - 1)
-        if ch == "^":
-            return Token(type="POW", value=ch, position=self.pos - 1)
-        if ch == "(":
-            return Token(type="LPAREN", value=ch, position=self.pos - 1)
-        if ch == ")":
-            return Token(type="RPAREN", value=ch, position=self.pos - 1)
-
-        # Anything else is invalid for this lexer
-        raise ValueError(f"Unexpected character {ch!r} at position {self.pos - 1}")
+        raise ValueError(f"Unexpected character {self.text[self.pos]!r} at position {self.pos}")
 
     def tokenize(self) -> list[Token]:
         tokens: list[Token] = []
         while True:
             tok = self.next_token()
             tokens.append(tok)
-            if tok.type == "EOF":
+            if tok.type == TokenType.EOF:
                 break
         return tokens
 
